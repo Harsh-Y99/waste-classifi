@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EcoVision AI - Smart Waste Classification</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.7/dist/axios.min.js"></script>
+    <style>
+        :root {
+            --primary: #2ecc71;
+            --danger: #e74c3c;
+            --warning: #f1c40f;
+            --info: #3498db;
+            --dark: #2c3e50;
+            --light: #ecf0f1;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1abc9c, #16a085);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+            padding: 2.5rem;
+            width: 100%;
+            max-width: 800px;
+            transition: transform 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            color: var(--dark);
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(45deg, #1abc9c, #16a085);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .upload-area {
+            border: 3px dashed var(--primary);
+            border-radius: 15px;
+            padding: 2.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            background: rgba(46, 204, 113, 0.05);
+        }
+
+        .upload-area:hover {
+            background: rgba(46, 204, 113, 0.1);
+            transform: translateY(-3px);
+        }
+
+        .preview-container {
+            margin: 2rem 0;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            display: none;
+            position: relative;
+        }
+
+        #preview {
+            width: 100%;
+            display: block;
+            max-height: 400px;
+            object-fit: cover;
+        }
+
+        .results-panel {
+            background: var(--light);
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .prediction-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            animation: slideIn 0.5s ease;
+            transition: transform 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        .prediction-card:hover {
+            transform: translateX(10px);
+        }
+
+        .confidence-meter {
+            width: 100%;
+            height: 12px;
+            background: #eee;
+            border-radius: 6px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            background: var(--primary);
+            transition: width 0.8s ease;
+        }
+
+        .category-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem border-radius: 20px;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+        }
+
+        .recyclable { background: #2ecc71; color: white; }
+        .hazardous { background: #e74c3c; color: white; }
+        .organic { background: #f1c40f; color: white; }
+        .medical { background: #9b59b6; color: white; }
+        .electronic { background: #34495e; color: white; }
+
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.9);
+            display: none;
+            place-items: center;
+            z-index: 100;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .stats-bar {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .stat-box {
+            flex: 1;
+            background: white;
+            padding: 1rem;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1.5rem;
+                margin: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .prediction-card {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="loading-overlay">
+            <div class="spinner"></div>
+        </div>
+        
+        <div class="header">
+            <h1>EcoVision AI</h1>
+            <p>Advanced Waste Classification System</p>
+        </div>
+
+        <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+            <input type="file" id="fileInput" accept="image/*" hidden>
+            <div class="upload-content">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                </svg>
+                <h3>Drag & Drop or Click to Upload</h3>
+                <p>Supported formats: JPEG, PNG, WEBP </p>
+                <b>This Project Is Implement By Harsh Yadav</b>
+            </div>
+        </div>
+
+        <div class="preview-container">
+            <img id="preview" alt="Waste Preview">
+        </div>
+
+        <div class="results-panel">
+            <div id="predictions"></div>
+            <div class="stats-bar">
+                <div class="stat-box">
+                    <h4>Total Detections</h4>
+                    <p id="totalDetections">0</p>
+                </div>
+                <div class="stat-box">
+                    <h4>Confidence</h4>
+                    <p id="averageConfidence">0%</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_KEY = "ZXkszgdUoB1NitZltKSP";
+        const MODEL_ENDPOINT = "https://detect.roboflow.com/waste-classification-uwqfy/1";
+
+        const wasteCategories = {
+            'plastic': { name: 'Recyclable Plastic', class: 'recyclable', icon: '♻️' },
+            'paper': { name: 'Recyclable Paper', class: 'recyclable', icon: '📄' },
+            'glass': { name: 'Recyclable Glass ', class: 'recyclable', icon: '🍶' },
+            'metal': { name: 'Recyclable Metal', class: 'recyclable', icon: '🔩' },
+            'battery': { name: 'Hazardous Waste', class: 'hazardous', icon: '⚠️' },
+            'chemical': { name: 'Hazardous Chemical', class: 'hazardous', icon: '☣️' },
+            'food': { name: 'Organic Waste', class: 'organic', icon: '🍎' },
+            'medical': { name: 'Medical Waste', class: 'medical', icon: '⚕️' },
+            'e-waste': { name: 'Electronic Waste', class: 'electronic', icon: '🔌' }
+        };
+
+        async function processImage(file) {
+            const loader = document.querySelector('.loading-overlay');
+            const previewContainer = document.querySelector('.preview-container');
+            const predictionsDiv = document.getElementById('predictions');
+            
+            try {
+                loader.style.display = 'grid';
+                previewContainer.style.display = 'none';
+                predictionsDiv.innerHTML = '';
+
+                // Read and preview image
+                const preview = document.getElementById('preview');
+                preview.src = URL.createObjectURL(file);
+                previewContainer.style.display = 'block';
+
+                // Convert to base64
+                const base64 = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(file);
+                    reader.onload = () => resolve(reader.result.split(',')[1]);
+                    reader.onerror = error => reject(error);
+                });
+
+                // API Request
+                const response = await axios.post(MODEL_ENDPOINT, base64, {
+                    params: { api_key: API_KEY },
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" }
+                });
+
+                // Process results
+                const predictions = response.data.predictions;
+                if (!predictions.length) throw new Error('No waste detected');
+                
+                updateResults(predictions);
+                updateStatistics(predictions);
+
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+
+        function updateResults(predictions) {
+            const predictionsDiv = document.getElementById('predictions');
+            predictionsDiv.innerHTML = predictions
+                .sort((a, b) => b.confidence - a.confidence)
+                .map(pred => {
+                    const category = wasteCategories[pred.class.toLowerCase()] || 
+                        { name: pred.class, class: 'other', icon: '🗑️' };
+                    
+                    return `
+                        <div class="prediction-card">
+                            <div class="category-tag ${category.class}">
+                                ${category.icon} ${category.name}
+                            </div>
+                            <div class="confidence-meter">
+                                <div class="confidence-fill" style="width: ${Math.round(pred.confidence * 100)}%;"></div>
+                            </div>
+                            <span>${Math.round(pred.confidence * 100)}%</span>
+                        </div>
+                    `;
+                }).join('');
+        }
+
+        function updateStatistics(predictions) {
+            const totalDetections = predictions.length;
+            const averageConfidence = (predictions.reduce((sum, pred) => sum + pred.confidence, 0) / totalDetections) * 100;
+
+            document.getElementById('totalDetections').textContent = totalDetections;
+            document.getElementById('averageConfidence').textContent = `${Math.round(averageConfidence)}%`;
+        }
+
+        function showError(message) {
+            const predictionsDiv = document.getElementById('predictions');
+            predictionsDiv.innerHTML = `<div class="error">${message}</div>`;
+        }
+
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                processImage(e.target.files[0]);
+            }
+        });
+
+        const uploadArea = document.querySelector('.upload-area');
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.style.background = 'rgba(46, 204, 113, 0.1)';
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.style.background = '';
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.style.background = '';
+            if (e.dataTransfer.files.length > 0) {
+                processImage(e.dataTransfer.files[0]);
+            }
+        });
+    </script>
+</body>
+</html>
